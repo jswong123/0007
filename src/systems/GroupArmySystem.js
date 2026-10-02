@@ -15,12 +15,29 @@ function unit(id,name,faction,type,echelon,q,r,manpower,attack,defense,movement,
   equipmentSummary:`${equipmentName} ${qty}/${qty}`,modern:{c2:100,intelLevel:0,supply:100,ammo:100,fuel:100,parentHQ}};
 }
 
+// 非对称集团军部署区。坐标按 128×84 基准地图定义，并按实际地图尺寸缩放。
+// 不使用镜像翻转：红蓝双方拥有不同的道路、山地、城区和纵深条件。
+const DEPLOYMENT_ANCHORS={
+ RED:[
+  {q:22,r:23,label:'西北山地集结区'},
+  {q:31,r:43,label:'西部河谷集结区'},
+  {q:26,r:61,label:'西南机动集结区'},
+  {q:47,r:70,label:'南部预备队地域'}
+ ],
+ BLUE:[
+  {q:101,r:20,label:'东北机场纵深'},
+  {q:104,r:39,label:'东部新城地域'},
+  {q:91,r:58,label:'东南工业地域'},
+  {q:111,r:67,label:'东部滨海预备地域'}
+ ]
+};
+const ARMY_REAR={RED:{q:11,r:53},BLUE:{q:118,r:29}};
+const scaleAnchor=(a,W,H)=>({q:Math.round(a.q*(W/128)),r:Math.round(a.r*(H/84)),label:a.label});
+
 function relocateBrigade(units, side, brigadeIndex, brigadeType, W,H){
- const left=side==='RED';
- const laneR=[8,19,31,42][brigadeIndex] ?? (8+brigadeIndex*10);
- const targetQ=left?14:W-15;
+ const anchor=scaleAnchor((DEPLOYMENT_ANCHORS[side]??DEPLOYMENT_ANCHORS.RED)[brigadeIndex]??DEPLOYMENT_ANCHORS[side][0],W,H);
  const sourceHQ=units.find(u=>u.echelon==='brigade');
- const dq=targetQ-(sourceHQ?.q??targetQ), dr=laneR-(sourceHQ?.r??laneR);
+ const dq=anchor.q-(sourceHQ?.q??anchor.q), dr=anchor.r-(sourceHQ?.r??anchor.r);
  const oldPrefix=side+'_'; const newPrefix=`${side}_BDE${brigadeIndex+1}_`;
  const idMap=new Map();
  for(const u of units){const old=u.id;u.id=newPrefix+old.replace(oldPrefix,'');idMap.set(old,u.id);}
@@ -28,6 +45,7 @@ function relocateBrigade(units, side, brigadeIndex, brigadeType, W,H){
    if(u.parentHQ&&idMap.has(u.parentHQ))u.parentHQ=idMap.get(u.parentHQ);
    u.q=clamp(u.q+dq,2,W-3);u.r=clamp(u.r+dr,2,H-3);
    u.formation=`${SIDE_NAME[side]}第${brigadeIndex+1}${TYPE_NAMES[brigadeType]??'合成旅'}${u.echelon==='brigade'?'':('·'+(u.formation??''))}`;
+   u.deploymentArea=anchor.label;
    u.brigadeIndex=brigadeIndex+1;u.brigadeType=brigadeType;
    if(u.echelon==='brigade')u.fullName=`${SIDE_NAME[side]}第${brigadeIndex+1}${TYPE_NAMES[brigadeType]}`;
  }
@@ -35,7 +53,7 @@ function relocateBrigade(units, side, brigadeIndex, brigadeType, W,H){
 }
 
 function armyDirect(side,W,H){
- const left=side==='RED', rearQ=left?4:W-5, dir=left?1:-1, mid=Math.round(H/2), s=SIDE_NAME[side];
+ const base=scaleAnchor(ARMY_REAR[side]??ARMY_REAR.RED,W,H), rearQ=base.q, mid=base.r, dir=side==='RED'?1:-1, s=SIDE_NAME[side];
  const hq=`${side}_GA_HQ`, form=`${s}集团军直属`;
  const a=[
   unit(hq,`${s}集团军指挥所`,side,'headquarters','army',rearQ,mid,260,2,15,3,1,'集团军野战指挥系统',12,null,form),
